@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}Bus Stop Prediction Results{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="fas fa-map-marker-alt"></i> Predicted Bus Stops Map</h4>
+            </div>
+            <div class="card-body">
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="fas fa-chart-bar"></i> Bus Stop Statistics</h4>
+            </div>
+            <div class="card-body">
+                <canvas id="confidenceChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="fas fa-table"></i> Bus Stops Details</h4>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Supporting Files</th>
+                                <th>Confidence</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stop in bus_stops %}
+                            <tr class="stop-row" data-lat="{{ stop.latitude }}" data-lon="{{ stop.longitude }}">
+                                <td>{{ loop.index }}</td>
+                                <td>{{ stop.supporting_files }}</td>
+                                <td>{{ (stop.confidence * 100) | round(1) }}%</td>
+                                <td>
+                                    <a href="{{ stop.osm_link }}" target="_blank" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-external-link-alt"></i> OSM
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize the map
+        const mapCenter = {{ map_center|tojson }};
+        const map = L.map('map').setView(mapCenter, 14);
+        
+        // Add OpenStreetMap tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        
+        // Add bus stop markers
+        const busStops = {{ bus_stops|tojson }};
+        const markers = [];
+        
+        busStops.forEach((stop, index) => {
+            const marker = L.marker([stop.latitude, stop.longitude])
+                .addTo(map)
+                .bindPopup(`
+                    <strong>Bus Stop #${index + 1}</strong><br>
+                    Location: ${stop.latitude.toFixed(6)}, ${stop.longitude.toFixed(6)}<br>
+                    Supporting Files: ${stop.supporting_files}<br>
+                    Confidence: ${(stop.confidence * 100).toFixed(1)}%<br>
+                    <a href="${stop.osm_link}" target="_blank">View in OpenStreetMap</a>
+                `);
+            markers.push(marker);
+        });
+        
+        // Create confidence chart
+        const ctx = document.getElementById('confidenceChart').getContext('2d');
+        
+        // Sort bus stops by confidence for better visualization
+        const sortedStops = [...busStops].sort((a, b) => b.confidence - a.confidence);
+        
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: sortedStops.map((_, index) => `Stop #${index + 1}`),
+                datasets: [
+                    {
+                        label: 'Supporting Files',
+                        data: sortedStops.map(stop => stop.supporting_files),
+                        backgroundColor: 'rgba(74, 107, 138, 0.7)',
+                        borderColor: 'rgba(74, 107, 138, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'y-axis-1',
+                    },
+                    {
+                        label: 'Confidence (%)',
+                        data: sortedStops.map(stop => stop.confidence * 100),
+                        type: 'line',
+                        fill: false,
+                        backgroundColor: 'rgba(220, 53, 69, 0.7)',
+                        borderColor: 'rgba(220, 53, 69, 1)',
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        yAxisID: 'y-axis-2',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Bus Stop'
+                        }
+                    },
+                    'y-axis-1': {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Supporting Files'
+                        }
+                    },
+                    'y-axis-2': {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Confidence (%)'
+                        },
+                        max: 100,
+                        min: 0,
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Add event listeners for the table rows
+        document.querySelectorAll('.stop-row').forEach((row, index) => {
+            row.addEventListener('click', () => {
+                const lat = parseFloat(row.dataset.lat);
+                const lon = parseFloat(row.dataset.lon);
+                map.setView([lat, lon], 17);
+                markers[index].openPopup();
+            });
+            
+            // Add hover effect
+            row.style.cursor = 'pointer';
+        });
+    });
+</script>
+{% endblock %}

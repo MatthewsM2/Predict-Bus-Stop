@@ -1,0 +1,6 @@
+uploads/
+gpx/
+venv/
+__pycache__/
+*.gpx
+*.geojson

@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Bus Stop Predictor - Upload GPX Files{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="fas fa-upload"></i> Upload GPX Files</h4>
+            </div>
+            <div class="card-body">
+                <p class="lead">Upload your GPX files to predict bus stops based on vehicle movement patterns.</p>
+                
+                <form action="{{ url_for('upload_files') }}" method="post" enctype="multipart/form-data" id="uploadForm">
+                    <div class="mb-4">
+                        <div class="file-drop-area" id="dropArea">
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <i class="fas fa-cloud-upload-alt fa-3x text-secondary"></i>
+                                </div>
+                                <p class="mb-2">Drag & drop your GPX files here</p>
+                                <p class="text-muted small mb-3">or</p>
+                                <label class="btn btn-primary">
+                                    Browse Files
+                                    <input type="file" name="files" id="fileInput" accept=".gpx" multiple style="display: none;">
+                                </label>
+                            </div>
+                        </div>
+                        <div class="mt-2" id="fileList">
+                            <p class="small text-muted mb-0">Selected files: <span id="fileCount">0</span></p>
+                            <ul class="list-group mt-2" id="selectedFiles"></ul>
+                        </div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" id="processButton" disabled>
+                            <i class="fas fa-cogs"></i> Process Files
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="fas fa-info-circle"></i> About</h4>
+            </div>
+            <div class="card-body">
+                <p>This application analyzes GPX movement data to identify potential bus stops based on stopping patterns. The system:</p>
+                <ul>
+                    <li>Extracts coordinates, speed, and timestamp information from GPX files</li>
+                    <li>Identifies locations where vehicles stop (zero speed)</li>
+                    <li>Uses clustering algorithms to group similar stopping points</li>
+                    <li>Calculates confidence scores based on recurring patterns</li>
+                    <li>Visualizes predicted bus stops on an interactive map</li>
+                </ul>
+                <p>Upload multiple GPX files for more accurate predictions.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const dropArea = document.getElementById('dropArea');
+        const fileInput = document.getElementById('fileInput');
+        const selectedFiles = document.getElementById('selectedFiles');
+        const fileCount = document.getElementById('fileCount');
+        const processButton = document.getElementById('processButton');
+
+        // Drag and drop functionality
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight() {
+            dropArea.classList.add('is-active');
+        }
+
+        function unhighlight() {
+            dropArea.classList.remove('is-active');
+        }
+
+        dropArea.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            fileInput.files = files;
+            updateFileList();
+        }
+
+        fileInput.addEventListener('change', updateFileList);
+
+        function updateFileList() {
+            selectedFiles.innerHTML = '';
+            const files = fileInput.files;
+            
+            if (files.length > 0) {
+                processButton.disabled = false;
+                fileCount.textContent = files.length;
+                
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const item = document.createElement('li');
+                    item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    
+                    const fileNameSpan = document.createElement('span');
+                    fileNameSpan.textContent = file.name;
+                    
+                    const fileSizeSpan = document.createElement('span');
+                    fileSizeSpan.className = 'badge bg-secondary';
+                    fileSizeSpan.textContent = formatFileSize(file.size);
+                    
+                    item.appendChild(fileNameSpan);
+                    item.appendChild(fileSizeSpan);
+                    selectedFiles.appendChild(item);
+                }
+            } else {
+                processButton.disabled = true;
+                fileCount.textContent = '0';
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            else return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+    });
+</script>
+{% endblock %}
