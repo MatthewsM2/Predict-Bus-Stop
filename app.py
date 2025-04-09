@@ -1,12 +1,15 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 import os
+from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 from model import parse_gpx, preprocess_data, cluster_stops, analyze_clusters
 import pandas as pd
 import uuid
 
+load_dotenv()
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'
+#app.config['SECRET_KEY'] = 'your-secret-key-here'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
 app.config['ALLOWED_EXTENSIONS'] = {'gpx'}

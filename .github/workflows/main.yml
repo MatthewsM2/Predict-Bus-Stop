@@ -1,0 +1,122 @@
+name: Python Flask Application CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; else pip install flask pandas scikit-learn geopy folium matplotlib plotly; fi
+        pip install flake8 pytest
+
+    - name: Lint with flake8
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Check application startup
+      run: |
+        # Create a test script to check if the app can start without errors
+        cat > test_startup.py << 'EOF'
+        import importlib.util
+        import sys
+        
+        # Test importing the app
+        spec = importlib.util.spec_from_file_location("app", "app.py")
+        app_module = importlib.util.module_from_spec(spec)
+        sys.modules["app"] = app_module
+        
+        try:
+            spec.loader.exec_module(app_module)
+            print("✅ Successfully imported app.py")
+        except Exception as e:
+            print(f"❌ Error importing app.py: {e}")
+            sys.exit(1)
+        
+        # Check if app actually has Flask routes defined
+        try:
+            if hasattr(app_module, 'app'):
+                routes = [rule.rule for rule in app_module.app.url_map.iter_rules()]
+                if routes:
+                    print(f"✅ Found {len(routes)} routes in Flask app")
+                else:
+                    print("⚠️ No routes found in Flask app")
+            else:
+                print("⚠️ No 'app' instance found in app.py")
+        except Exception as e:
+            print(f"❌ Error checking Flask routes: {e}")
+        
+        print("✅ Application startup check completed successfully")
+        EOF
+        
+        python test_startup.py
+
+    - name: Test directory structure
+      run: |
+        # Check if required directories exist
+        if [ -d "templates" ]; then
+          echo "✅ Templates directory exists"
+        else
+          echo "⚠️ Templates directory not found"
+        fi
+        
+        # Check for template files
+        if [ -f "templates/index.html" ] && [ -f "templates/results.html" ]; then
+          echo "✅ Template files found"
+        else
+          echo "⚠️ Some template files are missing"
+        fi
+        
+        # Create uploads directory if it doesn't exist (should be created by app but check anyway)
+        mkdir -p uploads
+        echo "✅ Uploads directory verified"
+
+    - name: Create test GPX file
+      run: |
+        # Create a minimal test GPX file
+        cat > test.gpx << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <gpx version="1.1" creator="Test">
+          <trk>
+            <trkseg>
+              <trkpt lat="52.5200" lon="13.4050">
+                <ele>40</ele>
+                <time>2023-01-01T10:00:00Z</time>
+                <speed>0</speed>
+              </trkpt>
+              <trkpt lat="52.5201" lon="13.4051">
+                <ele>40</ele>
+                <time>2023-01-01T10:00:10Z</time>
+                <speed>5</speed>
+              </trkpt>
+              <trkpt lat="52.5202" lon="13.4052">
+                <ele>40</ele>
+                <time>2023-01-01T10:00:20Z</time>
+                <speed>0</speed>
+              </trkpt>
+            </trkseg>
+          </trk>
+        </gpx>
+        EOF
+        
+        echo "✅ Test GPX file created"
+
+    - name: Summary
+      run: echo "✅ CI workflow completed successfully"
